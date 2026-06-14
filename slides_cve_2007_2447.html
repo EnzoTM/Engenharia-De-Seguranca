@@ -1,0 +1,1604 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CVE-2007-2447 — Samba username map script</title>
+
+    <!-- ===========================================================
+     FONTES
+     - Clash Display (Fontshare): títulos com peso e personalidade
+     - General Sans (Fontshare): corpo de texto técnico e legível
+     - JetBrains Mono (Google): trechos de código / config / terminal
+     =========================================================== -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet"
+        href="https://api.fontshare.com/v2/css?f[]=clash-display@500,600,700&f[]=general-sans@400,500,600&display=swap">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap">
+
+    <style>
+        /* ===========================================================
+   VARIÁVEIS DE TEMA
+   Altere aqui para mudar todo o visual do deck.
+   Paleta: preto profundo + azul aço claro (#A8C5D6), sem neon.
+   =========================================================== */
+        :root {
+            --bg: #0A0A0A;
+            /* fundo geral / quase preto */
+            --bg-stage: #0C0D0E;
+            /* fundo do palco */
+            --panel: #141517;
+            /* cards e painéis */
+            --panel-2: #1A1C1F;
+            /* painéis secundários / destaque */
+            --line: rgba(168, 197, 214, 0.16);
+            /* bordas finas */
+            --line-soft: rgba(255, 255, 255, 0.06);
+
+            --text: #DCDFE2;
+            /* texto principal cinza claro */
+            --text-dim: #8A9097;
+            /* texto secundário */
+            --text-mute: #5F656B;
+            /* legendas / numeração apagada */
+
+            --accent: #A8C5D6;
+            /* azul aço — cor de contraste */
+            --accent-deep: #7FA6BC;
+            --accent-soft: rgba(168, 197, 214, 0.10);
+
+            --font-display: 'Clash Display', sans-serif;
+            --font-body: 'General Sans', sans-serif;
+            --font-mono: 'JetBrains Mono', monospace;
+
+            --ease: cubic-bezier(0.16, 1, 0.3, 1);
+            --dur: 0.7s;
+
+            --stage-bg: var(--bg);
+            --slide-bg: var(--bg-stage);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        /* ===========================================================
+   FIXED 16:9 STAGE — viewport-base.css (incluído na íntegra)
+   =========================================================== */
+        html,
+        body {
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            overflow: hidden;
+            background: var(--stage-bg, #000);
+        }
+
+        .deck-viewport {
+            position: fixed;
+            inset: 0;
+            overflow: hidden;
+            background: var(--stage-bg, #000);
+        }
+
+        .deck-stage {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 1920px;
+            height: 1080px;
+            overflow: hidden;
+            transform-origin: 0 0;
+            background: var(--slide-bg, #fff);
+        }
+
+        .slide {
+            position: absolute;
+            inset: 0;
+            width: 1920px;
+            height: 1080px;
+            overflow: hidden;
+            display: block;
+            visibility: hidden;
+            opacity: 0;
+            pointer-events: none;
+            background: var(--slide-bg, #fff);
+        }
+
+        .slide.active,
+        .slide.visible {
+            visibility: visible;
+            opacity: 1;
+            pointer-events: auto;
+            z-index: 1;
+        }
+
+        img,
+        video,
+        canvas,
+        svg {
+            max-width: 100%;
+            max-height: 100%;
+        }
+
+        .deck-controls {
+            position: fixed;
+            left: 50%;
+            bottom: 22px;
+            transform: translateX(-50%);
+            z-index: 1000;
+        }
+
+        @media print {
+
+            html,
+            body {
+                width: 1920px;
+                height: auto;
+                overflow: visible;
+                background: #fff;
+            }
+
+            .deck-viewport {
+                position: static;
+                overflow: visible;
+                background: #fff;
+            }
+
+            .deck-stage {
+                position: static;
+                width: auto;
+                height: auto;
+                transform: none !important;
+                background: none;
+            }
+
+            .slide {
+                position: relative;
+                display: block !important;
+                visibility: visible !important;
+                opacity: 1 !important;
+                pointer-events: auto !important;
+                width: 1920px;
+                height: 1080px;
+                break-after: page;
+                page-break-after: always;
+            }
+
+            .slide:last-child {
+                break-after: auto;
+                page-break-after: auto;
+            }
+
+            .deck-controls {
+                display: none !important;
+            }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+
+            *,
+            *::before,
+            *::after {
+                animation-duration: 0.01ms !important;
+                transition-duration: 0.2s !important;
+            }
+        }
+
+        /* ===========================================================
+   BASE TIPOGRÁFICA E ATMOSFERA
+   =========================================================== */
+        .slide {
+            font-family: var(--font-body);
+            color: var(--text);
+            background:
+                radial-gradient(900px 600px at 88% -8%, rgba(168, 197, 214, 0.07), transparent 60%),
+                radial-gradient(1000px 700px at -5% 108%, rgba(168, 197, 214, 0.05), transparent 55%),
+                var(--bg-stage);
+        }
+
+        /* grade fina de fundo — profundidade sem neon */
+        .slide::before {
+            content: "";
+            position: absolute;
+            inset: 0;
+            background-image:
+                linear-gradient(var(--line-soft) 1px, transparent 1px),
+                linear-gradient(90deg, var(--line-soft) 1px, transparent 1px);
+            background-size: 120px 120px;
+            opacity: 0.5;
+            pointer-events: none;
+        }
+
+        .slide-pad {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            padding: 84px 104px 76px;
+            display: flex;
+            flex-direction: column;
+            z-index: 1;
+        }
+
+        /* --- cabeçalho de slide --- */
+        .eyebrow {
+            font-family: var(--font-mono);
+            font-size: 19px;
+            font-weight: 500;
+            letter-spacing: 0.32em;
+            text-transform: uppercase;
+            color: var(--accent);
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .eyebrow::before {
+            content: "";
+            width: 40px;
+            height: 2px;
+            background: var(--accent);
+            display: inline-block;
+        }
+
+        .s-title {
+            font-family: var(--font-display);
+            font-weight: 600;
+            font-size: 66px;
+            line-height: 1.04;
+            letter-spacing: -0.01em;
+            color: #fff;
+            margin-top: 20px;
+        }
+
+        .s-title .em {
+            color: var(--accent);
+        }
+
+        .lead {
+            font-size: 26px;
+            line-height: 1.5;
+            color: var(--text-dim);
+            max-width: 1500px;
+            margin-top: 22px;
+        }
+
+        .lead strong {
+            color: var(--text);
+            font-weight: 600;
+        }
+
+        .body-area {
+            margin-top: 44px;
+            flex: 1;
+            min-height: 0;
+        }
+
+        /* --- elementos comuns --- */
+        .mono {
+            font-family: var(--font-mono);
+        }
+
+        code,
+        .code {
+            font-family: var(--font-mono);
+            color: var(--accent);
+            background: var(--accent-soft);
+            padding: 2px 9px;
+            border-radius: 6px;
+            font-size: 0.9em;
+            border: 1px solid var(--line);
+        }
+
+        .card {
+            background: var(--panel);
+            border: 1px solid var(--line);
+            border-radius: 16px;
+            padding: 34px 36px;
+        }
+
+        .card h3 {
+            font-family: var(--font-display);
+            font-weight: 600;
+            font-size: 30px;
+            color: #fff;
+            margin-bottom: 14px;
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+
+        .card p {
+            font-size: 23px;
+            line-height: 1.5;
+            color: var(--text-dim);
+        }
+
+        .card p strong,
+        .card li strong {
+            color: var(--text);
+            font-weight: 600;
+        }
+
+        .grid-2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 34px;
+        }
+
+        .grid-3 {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 30px;
+        }
+
+        ul.ticks {
+            list-style: none;
+        }
+
+        ul.ticks li {
+            position: relative;
+            padding-left: 38px;
+            margin-bottom: 18px;
+            font-size: 23px;
+            line-height: 1.45;
+            color: var(--text-dim);
+        }
+
+        ul.ticks li::before {
+            content: "";
+            position: absolute;
+            left: 0;
+            top: 11px;
+            width: 16px;
+            height: 16px;
+            border: 2px solid var(--accent);
+            border-radius: 4px;
+        }
+
+        ul.ticks.x li::before {
+            border-color: var(--text-mute);
+        }
+
+        ul.ticks li:last-child {
+            margin-bottom: 0;
+        }
+
+        /* rodapé / numeração de slide */
+        .foot {
+            position: absolute;
+            left: 104px;
+            right: 104px;
+            bottom: 40px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-family: var(--font-mono);
+            font-size: 16px;
+            color: var(--text-mute);
+            letter-spacing: 0.1em;
+            z-index: 2;
+        }
+
+        .foot .dot {
+            color: var(--accent);
+        }
+
+        /* ===========================================================
+   ANIMAÇÕES DE CARGA (stagger reveal)
+   =========================================================== */
+        .reveal {
+            opacity: 0;
+            transform: translateY(28px);
+            transition: opacity var(--dur) var(--ease), transform var(--dur) var(--ease);
+        }
+
+        .slide.visible .reveal {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .slide.visible .reveal:nth-child(1) {
+            transition-delay: 0.08s;
+        }
+
+        .slide.visible .reveal:nth-child(2) {
+            transition-delay: 0.16s;
+        }
+
+        .slide.visible .reveal:nth-child(3) {
+            transition-delay: 0.24s;
+        }
+
+        .slide.visible .reveal:nth-child(4) {
+            transition-delay: 0.32s;
+        }
+
+        .slide.visible .reveal:nth-child(5) {
+            transition-delay: 0.40s;
+        }
+
+        .slide.visible .reveal:nth-child(6) {
+            transition-delay: 0.48s;
+        }
+
+        .slide.visible .reveal:nth-child(7) {
+            transition-delay: 0.56s;
+        }
+
+        .slide.visible .reveal:nth-child(8) {
+            transition-delay: 0.64s;
+        }
+
+        .slide.visible .reveal:nth-child(9) {
+            transition-delay: 0.72s;
+        }
+
+        /* ===========================================================
+   SLIDE DE CAPA
+   =========================================================== */
+        .cover {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+
+        .cover .kicker {
+            font-family: var(--font-mono);
+            font-size: 21px;
+            letter-spacing: 0.34em;
+            text-transform: uppercase;
+            color: var(--accent);
+        }
+
+        .cve-id {
+            font-family: var(--font-display);
+            font-weight: 700;
+            font-size: 130px;
+            line-height: 0.96;
+            letter-spacing: -0.02em;
+            color: #fff;
+            margin: 24px 0 12px;
+        }
+
+        .cve-id .slash {
+            color: var(--accent);
+        }
+
+        .cover-sub {
+            font-size: 38px;
+            color: var(--text);
+            font-weight: 500;
+            max-width: 1250px;
+            line-height: 1.3;
+        }
+
+        .cover-sub .accent {
+            color: var(--accent);
+        }
+
+        .cover-code {
+            margin-top: 44px;
+            font-family: var(--font-mono);
+            font-size: 24px;
+            color: var(--text-dim);
+            background: var(--panel);
+            border: 1px solid var(--line);
+            border-left: 3px solid var(--accent);
+            border-radius: 10px;
+            padding: 22px 28px;
+            width: fit-content;
+            max-width: 100%;
+        }
+
+        .cover-code .c {
+            color: var(--text-mute);
+        }
+
+        .cover-code .v {
+            color: var(--accent);
+        }
+
+        .cover-meta {
+            margin-top: 54px;
+            display: flex;
+            gap: 18px;
+            flex-wrap: wrap;
+        }
+
+        .chip {
+            font-family: var(--font-mono);
+            font-size: 18px;
+            letter-spacing: 0.05em;
+            color: var(--text-dim);
+            border: 1px solid var(--line);
+            border-radius: 999px;
+            padding: 11px 22px;
+            background: rgba(255, 255, 255, 0.02);
+        }
+
+        .chip b {
+            color: var(--accent);
+            font-weight: 500;
+        }
+
+        /* numeração grande em listas */
+        .steps {
+            display: flex;
+            flex-direction: column;
+            gap: 18px;
+        }
+
+        .step {
+            display: grid;
+            grid-template-columns: 78px 1fr;
+            align-items: center;
+            gap: 26px;
+            background: var(--panel);
+            border: 1px solid var(--line);
+            border-radius: 14px;
+            padding: 22px 30px;
+        }
+
+        .step .n {
+            font-family: var(--font-display);
+            font-weight: 600;
+            font-size: 40px;
+            color: var(--accent);
+            text-align: center;
+        }
+
+        .step .t {
+            font-size: 24px;
+            line-height: 1.4;
+            color: var(--text);
+        }
+
+        .step .t b {
+            color: var(--accent);
+            font-weight: 600;
+        }
+
+        /* fases (cards numerados horizontais) */
+        .phases {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 22px;
+        }
+
+        .phase {
+            background: var(--panel);
+            border: 1px solid var(--line);
+            border-radius: 14px;
+            padding: 28px 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+        }
+
+        .phase .pn {
+            font-family: var(--font-mono);
+            font-size: 18px;
+            color: var(--accent);
+            letter-spacing: 0.1em;
+        }
+
+        .phase .ph {
+            font-family: var(--font-display);
+            font-weight: 600;
+            font-size: 26px;
+            color: #fff;
+        }
+
+        .phase.glow {
+            border-color: var(--accent);
+            background: var(--panel-2);
+        }
+
+        /* diagrama de fluxo vertical */
+        .flow {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0;
+        }
+
+        .flow-box {
+            width: 980px;
+            max-width: 100%;
+            background: var(--panel);
+            border: 1px solid var(--line);
+            border-radius: 14px;
+            padding: 26px 36px;
+            font-size: 26px;
+            line-height: 1.35;
+            color: var(--text);
+            text-align: center;
+        }
+
+        .flow-box .mono {
+            color: var(--accent);
+        }
+
+        .flow-box.final {
+            border-color: var(--accent);
+            background: var(--panel-2);
+            color: #fff;
+        }
+
+        .flow-arrow {
+            width: 2px;
+            height: 34px;
+            background: linear-gradient(var(--accent), var(--accent-deep));
+            position: relative;
+        }
+
+        .flow-arrow::after {
+            content: "";
+            position: absolute;
+            bottom: -2px;
+            left: 50%;
+            transform: translateX(-50%);
+            border-left: 7px solid transparent;
+            border-right: 7px solid transparent;
+            border-top: 9px solid var(--accent-deep);
+        }
+
+        /* painel de destaque (dois críticos / antes-depois) */
+        .hl {
+            background: var(--panel);
+            border: 1px solid var(--line);
+            border-radius: 18px;
+            padding: 40px 42px;
+            display: flex;
+            flex-direction: column;
+            gap: 18px;
+        }
+
+        .hl.accent {
+            border-color: var(--accent);
+            background: var(--panel-2);
+        }
+
+        .hl .tag {
+            font-family: var(--font-mono);
+            font-size: 17px;
+            letter-spacing: 0.18em;
+            text-transform: uppercase;
+            color: var(--accent);
+        }
+
+        .hl h3 {
+            font-family: var(--font-display);
+            font-weight: 600;
+            font-size: 38px;
+            color: #fff;
+        }
+
+        .hl p {
+            font-size: 24px;
+            line-height: 1.5;
+            color: var(--text-dim);
+        }
+
+        .hl p strong {
+            color: var(--text);
+        }
+
+        /* before / after badges */
+        .ba-label {
+            font-family: var(--font-mono);
+            font-size: 16px;
+            letter-spacing: 0.16em;
+            text-transform: uppercase;
+            color: var(--text-mute);
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 4px;
+        }
+
+        .ba-label.bad::before {
+            content: "";
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #9a6a6a;
+        }
+
+        .ba-label.good::before {
+            content: "";
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: var(--accent);
+        }
+
+        /* grade de defesa (6 cards) */
+        .def-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 26px;
+        }
+
+        .def {
+            background: var(--panel);
+            border: 1px solid var(--line);
+            border-radius: 14px;
+            padding: 26px 28px;
+        }
+
+        .def .di {
+            font-family: var(--font-mono);
+            font-size: 17px;
+            color: var(--accent);
+            letter-spacing: 0.1em;
+            margin-bottom: 12px;
+        }
+
+        .def h4 {
+            font-family: var(--font-display);
+            font-weight: 600;
+            font-size: 25px;
+            color: #fff;
+            margin-bottom: 10px;
+        }
+
+        .def p {
+            font-size: 20px;
+            line-height: 1.42;
+            color: var(--text-dim);
+        }
+
+        /* slide de conclusão */
+        .closing {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+
+        /* ilustração da conclusão: errado (desligar) vs. certo (corrigir) */
+        .concl-illus {
+            display: flex;
+            align-items: stretch;
+            justify-content: center;
+            gap: 40px;
+            margin-top: 64px;
+        }
+
+        .ci-col {
+            flex: 1;
+            max-width: 460px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 18px;
+        }
+
+        .ci-card {
+            width: 100%;
+            background: var(--panel);
+            border: 1px solid var(--line);
+            border-radius: 18px;
+            padding: 36px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .ci-card.bad {
+            border-color: rgba(201, 96, 92, 0.42);
+        }
+
+        .ci-card.good {
+            border-color: rgba(116, 184, 107, 0.45);
+            background: var(--panel-2);
+        }
+
+        .ci-card svg {
+            width: 120px;
+            height: 120px;
+        }
+
+        .ci-label {
+            font-family: var(--font-display);
+            font-weight: 600;
+            font-size: 30px;
+            color: #fff;
+            text-align: center;
+        }
+
+        .ci-vs {
+            align-self: center;
+            font-family: var(--font-mono);
+            font-size: 22px;
+            letter-spacing: 0.12em;
+            color: var(--text-mute);
+            margin-top: 36px;
+        }
+
+        .big-quote {
+            font-family: var(--font-display);
+            font-weight: 600;
+            font-size: 58px;
+            line-height: 1.12;
+            letter-spacing: -0.01em;
+            color: #fff;
+            margin-top: 28px;
+            max-width: 1500px;
+        }
+
+        .big-quote .em {
+            color: var(--accent);
+        }
+
+        /* ===========================================================
+   CHROME DA APRESENTAÇÃO (fora do palco)
+   =========================================================== */
+        .progress-track {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: rgba(255, 255, 255, 0.05);
+            z-index: 1000;
+        }
+
+        .progress-bar {
+            height: 100%;
+            width: 0;
+            background: var(--accent);
+            transition: width 0.4s var(--ease);
+        }
+
+        .counter {
+            position: fixed;
+            right: 30px;
+            bottom: 24px;
+            z-index: 1000;
+            font-family: var(--font-mono);
+            font-size: 16px;
+            letter-spacing: 0.1em;
+            color: var(--text-mute);
+        }
+
+        .counter b {
+            color: var(--accent);
+            font-weight: 500;
+        }
+
+        /* edição inline */
+        .edit-hotzone {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 80px;
+            height: 80px;
+            z-index: 10000;
+            cursor: pointer;
+        }
+
+        .edit-toggle {
+            position: fixed;
+            top: 18px;
+            left: 18px;
+            z-index: 10001;
+            background: var(--panel);
+            color: var(--accent);
+            border: 1px solid var(--line);
+            border-radius: 10px;
+            width: 46px;
+            height: 46px;
+            font-size: 20px;
+            cursor: pointer;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+        }
+
+        .edit-toggle.show,
+        .edit-toggle.active {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .edit-toggle.active {
+            background: var(--accent);
+            color: #0A0A0A;
+        }
+
+        .editing [contenteditable="true"] {
+            outline: 1px dashed var(--accent);
+            outline-offset: 4px;
+            border-radius: 4px;
+        }
+
+        .edit-hint {
+            position: fixed;
+            top: 20px;
+            left: 76px;
+            z-index: 10001;
+            font-family: var(--font-mono);
+            font-size: 14px;
+            color: var(--text-dim);
+            background: var(--panel);
+            border: 1px solid var(--line);
+            padding: 8px 14px;
+            border-radius: 8px;
+            opacity: 0;
+            transition: opacity 0.3s;
+            pointer-events: none;
+        }
+
+        .edit-hint.show {
+            opacity: 1;
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- chrome -->
+    <div class="progress-track">
+        <div class="progress-bar" id="progressBar"></div>
+    </div>
+    <div class="counter"><b id="curNum">01</b> / <span id="totNum">16</span></div>
+
+    <!-- edição inline -->
+    <div class="edit-hotzone"></div>
+    <button class="edit-toggle" id="editToggle" title="Modo edição (E)">✏️</button>
+    <div class="edit-hint" id="editHint">Edição: clique nos textos · Ctrl+S salva</div>
+
+    <div class="deck-viewport">
+        <main class="deck-stage" id="deckStage">
+
+            <!-- ========== SLIDE 1 — CAPA ========== -->
+            <section class="slide cover active">
+                <div class="slide-pad cover">
+                    <div class="kicker reveal">SSC0900 · Engenharia de Segurança</div>
+                    <div class="cve-id reveal">CVE<span class="slash">·</span>2007<span class="slash">·</span>2447</div>
+                    <div class="cover-sub reveal">Injeção de comando no software <span class="accent">Samba</span>
+                        <div class="cover-meta reveal">
+                            <span class="chip"><b>Alvo:</b> metasploitable2</span>
+                            <span class="chip"><b>Ambiente:</b> Docker 100% local e isolado</span>
+                            <span class="chip"><b>Ferramenta:</b> Metasploit Framework</span>
+                        </div>
+                    </div>
+            </section>
+
+            <!-- ========== SLIDE 2 — S1: O QUE É PENTEST ========== -->
+            <section class="slide">
+                <div class="slide-pad">
+                    <div class="eyebrow reveal">Seção 1 · Introdução e contexto ético</div>
+                    <h1 class="s-title reveal">O que é um <span class="em">pentest</span></h1>
+                    <p class="lead reveal">Processo <strong>metodológico e autorizado</strong> de avaliação de segurança
+                        que simula o comportamento de um atacante real. Diferente de um ataque malicioso, tem
+                        <strong>escopo definido, autorização formal e propósito construtivo</strong>: encontrar
+                        vulnerabilidades antes dos agentes mal-intencionados.
+                    </p>
+                    <div class="body-area">
+                        <div class="phases reveal">
+                            <div class="phase"><span class="pn">FASE 01</span><span class="ph">Reconhecimento</span>
+                            </div>
+                            <div class="phase"><span class="pn">FASE 02</span><span class="ph">Enumeração</span></div>
+                            <div class="phase glow"><span class="pn">FASE 03</span><span class="ph">Exploração</span>
+                            </div>
+                            <div class="phase"><span class="pn">FASE 04</span><span class="ph">Pós-exploração</span>
+                            </div>
+                            <div class="phase"><span class="pn">FASE 05</span><span class="ph">Relatório</span></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="foot"><span><span class="dot">●</span> CVE-2007-2447 · Samba</span><span>Introdução e
+                        contexto ético</span></div>
+            </section>
+
+            <!-- ========== SLIDE 3 — S1: ÉTICA E ESCOPO ========== -->
+            <section class="slide">
+                <div class="slide-pad">
+                    <div class="eyebrow reveal">Seção 1 · Introdução e contexto ético</div>
+                    <h1 class="s-title reveal">Ética e escopo deste trabalho</h1>
+                    <div class="body-area">
+                        <div class="grid-2">
+                            <div class="card reveal">
+                                <h3><span class="mono accent">✓</span> O que foi feito</h3>
+                                <ul class="ticks">
+                                    <li>Rede Docker <code>pentest_lab</code> criada exclusivamente para o laboratório,
+                                        <strong>sem conexão externa</strong>
+                                    </li>
+                                    <li>Alvo: container <code>metasploitable2</code>, imagem <strong>propositalmente
+                                            vulnerável</strong> para fins educacionais</li>
+                                    <li>Objetivo estritamente <strong>didático e defensivo</strong></li>
+                                </ul>
+                            </div>
+                            <div class="card reveal">
+                                <h3><span class="mono" style="color:var(--text-mute)">✗</span> O que NÃO foi feito</h3>
+                                <ul class="ticks x">
+                                    <li>Nenhum ataque a sistemas de terceiros</li>
+                                    <li>Nenhuma coleta de dados reais</li>
+                                    <li>Sem persistência, movimentação lateral ou exfiltração</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="foot"><span><span class="dot">●</span> CVE-2007-2447 · Samba</span><span>Introdução e
+                        contexto ético</span></div>
+            </section>
+
+            <!-- ========== SLIDE 4 — S1: POR QUE ESTE TEMA ========== -->
+            <section class="slide">
+                <div class="slide-pad">
+                    <div class="eyebrow reveal">Seção 1 · Introdução e contexto ético</div>
+                    <h1 class="s-title reveal">Por que <span class="em">esta</span> vulnerabilidade</h1>
+                    <p class="lead reveal">Três vulnerabilidades foram avaliadas. A CVE-2007-2447 reúne as melhores
+                        características didáticas.</p>
+                    <div class="body-area">
+                        <div class="grid-3 reveal" style="margin-bottom:28px;">
+                            <div class="card">
+                                <h3>vsftpd</h3>
+                                <p>Backdoor em versão comprometida do servidor FTP.</p>
+                            </div>
+                            <div class="card">
+                                <h3>Tomcat</h3>
+                                <p>Upload de arquivo <code>.WAR</code> malicioso para execução.</p>
+                            </div>
+                            <div class="card" style="border-color:var(--accent);background:var(--panel-2)">
+                                <h3><span class="em">Samba</span> · CVE-2007-2447</h3>
+                                <p style="color:var(--text)"><strong>Escolhida</strong>, injeção de comando no
+                                    <code>username map script</code>.
+                                </p>
+                            </div>
+                        </div>
+                        <div class="reveal" style="display:flex;gap:16px;flex-wrap:wrap;">
+                            <span class="chip"><b>+</b> Não depende de senha</span>
+                            <span class="chip"><b>+</b> Causa técnica clara e explicável</span>
+                            <span class="chip"><b>+</b> Metasploit como ferramenta central</span>
+                            <span class="chip"><b>+</b> Defesa prática que mantém o serviço ativo</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="foot"><span><span class="dot">●</span> CVE-2007-2447 · Samba</span><span>Escolha do
+                        tema</span></div>
+            </section>
+
+            <!-- ========== SLIDE 5 — S2: SAMBA, SMB, CIFS ========== -->
+            <section class="slide">
+                <div class="slide-pad">
+                    <div class="eyebrow reveal">Seção 2 · Fundamentação teórica</div>
+                    <h1 class="s-title reveal">Samba, <span class="em">SMB</span> e CIFS</h1>
+                    <p class="lead reveal">O <strong>Samba</strong> é uma implementação livre dos protocolos
+                        <strong>SMB</strong> (Server Message Block) e <strong>CIFS</strong> (Common Internet File
+                        System) para Unix/Linux, uma ponte de interoperabilidade que permite compartilhar arquivos e
+                        impressoras com clientes Windows.
+                    </p>
+                    <div class="body-area">
+                        <div class="grid-3">
+                            <div class="card reveal">
+                                <h3>Daemon</h3>
+                                <p>O processo principal é o <code>smbd</code>, responsável por atender as sessões SMB.
+                                </p>
+                            </div>
+                            <div class="card reveal">
+                                <h3>Portas</h3>
+                                <p><code>TCP/139</code> NetBIOS Session Service<br><code>TCP/445</code> SMB direto
+                                    sobre TCP</p>
+                            </div>
+                            <div class="card reveal">
+                                <h3>Por que importa</h3>
+                                <p>SMB é onipresente em <strong>redes corporativas</strong>, falhas nele são
+                                    especialmente críticas.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="foot"><span><span class="dot">●</span> CVE-2007-2447 · Samba</span><span>Fundamentação
+                        teórica</span></div>
+            </section>
+
+            <!-- ========== SLIDE 6 — S2: username map script ========== -->
+            <section class="slide">
+                <div class="slide-pad">
+                    <div class="eyebrow reveal">Seção 2 · Fundamentação teórica</div>
+                    <h1 class="s-title reveal">A diretiva <span class="em mono">username map script</span></h1>
+                    <p class="lead reveal">Em <code>smb.conf</code>, essa opção delega o mapeamento de nomes de usuário
+                        a um <strong>script externo</strong>: o cliente fornece um nome, o Samba invoca o script com
+                        esse nome, e o script devolve o usuário local correspondente. A intenção era flexibilidade
+                        administrativa.</p>
+                    <div class="body-area">
+                        <div class="hl accent reveal">
+                            <span class="tag">A origem do problema</span>
+                            <h3>O nome de usuário é entrada controlada pelo cliente</h3>
+                            <p>Esse nome chegava ao script <strong>sem sanitização adequada</strong>. Ao montar a linha
+                                de comando para invocar o script, <strong>metacaracteres de shell</strong> presentes no
+                                nome podiam ser interpretados pelo interpretador de comandos.</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="foot"><span><span class="dot">●</span> CVE-2007-2447 · Samba</span><span>A diretiva
+                        vulnerável</span></div>
+            </section>
+
+            <!-- ========== SLIDE 7 — S2: FLUXO TÉCNICO (5 passos) ========== -->
+            <section class="slide">
+                <div class="slide-pad">
+                    <div class="eyebrow reveal">Seção 2 · Fundamentação teórica</div>
+                    <h1 class="s-title reveal">CVE-2007-2447, fluxo da exploração</h1>
+                    <div class="body-area">
+                        <div class="steps">
+                            <div class="step reveal"><span class="n">1</span><span class="t">Cliente SMB inicia sessão e
+                                    fornece um <b>nome de usuário</b> na mensagem <span class="mono">Session Setup AndX
+                                        Request</span>.</span></div>
+                            <div class="step reveal"><span class="n">2</span><span class="t">Com <span
+                                        class="mono">username map script</span> ativo, o Samba <b>invoca o script
+                                        externo</b> passando esse nome.</span></div>
+                            <div class="step reveal"><span class="n">3</span><span class="t">A montagem da linha de
+                                    comando <b>não sanitiza</b> metacaracteres de shell.</span></div>
+                            <div class="step reveal"><span class="n">4</span><span class="t">Caracteres como acentos
+                                    graves <span class="mono">` `</span> fazem o shell <b>interpretar o conteúdo como
+                                        comando</b>.</span></div>
+                            <div class="step reveal"><span class="n">5</span><span class="t">O comando é executado no
+                                    contexto do <span class="mono">smbd</span>, que roda como <b>root</b>.</span></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="foot"><span><span class="dot">●</span> CVE-2007-2447 · Samba</span><span>Fluxo da
+                        exploração</span></div>
+            </section>
+
+            <!-- ========== SLIDE 8 — S2: DOIS PONTOS CRÍTICOS ========== -->
+            <section class="slide">
+                <div class="slide-pad">
+                    <div class="eyebrow reveal">Seção 2 · Fundamentação teórica</div>
+                    <h1 class="s-title reveal">Dois pontos que tornam a falha <span class="em">grave</span></h1>
+                    <div class="body-area">
+                        <div class="grid-2" style="height:100%;align-content:center;">
+                            <div class="hl reveal">
+                                <span class="tag">Ponto 01</span>
+                                <h3>Pré-autenticação</h3>
+                                <p>O nome de usuário é processado <strong>antes</strong> da autenticação. O atacante
+                                    <strong>não precisa de credencial alguma</strong>, o que diferencia radicalmente
+                                    esta falha de "senha fraca".
+                                </p>
+                            </div>
+                            <div class="hl accent reveal">
+                                <span class="tag">Ponto 02</span>
+                                <h3>Execução como root</h3>
+                                <p>O <span class="mono">smbd</span> roda com <strong>privilégios máximos</strong>, então
+                                    o comando injetado herda esse contexto, <strong>impacto máximo</strong> sobre o
+                                    sistema.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="foot"><span><span class="dot">●</span> CVE-2007-2447 · Samba</span><span>Pontos
+                        críticos</span></div>
+            </section>
+
+            <!-- ========== SLIDE 9 — S2: METASPLOIT ========== -->
+            <section class="slide">
+                <div class="slide-pad">
+                    <div class="eyebrow reveal">Seção 2 · Fundamentação teórica</div>
+                    <h1 class="s-title reveal">Metasploit, <span class="em">exploit</span> e <span
+                            class="em">payload</span></h1>
+                    <p class="lead reveal">O Metasploit Framework organiza, por módulos, a execução padronizada de
+                        exploits. O módulo <code>exploit/multi/samba/usermap_script</code> automatiza a injeção no campo
+                        de nome de usuário.</p>
+                    <div class="body-area">
+                        <div class="grid-2 reveal" style="margin-bottom:26px;">
+                            <div class="card">
+                                <h3>Exploit</h3>
+                                <p>A sequência que <strong>aproveita a falha</strong>, a injeção no campo de nome de
+                                    usuário.</p>
+                            </div>
+                            <div class="card">
+                                <h3>Payload</h3>
+                                <p>O que acontece <strong>depois</strong>:<br>· <code>cmd/unix/generic</code>, executa
+                                    um comando único<br>· <code>cmd/unix/bind_netcat</code>, abre uma porta de shell na
+                                    vítima</p>
+                            </div>
+                        </div>
+                        <div class="reveal"><span class="chip"><b>Rank: excellent</b>, altíssima confiabilidade do
+                                módulo</span></div>
+                    </div>
+                </div>
+                <div class="foot"><span><span class="dot">●</span> CVE-2007-2447 · Samba</span><span>Metasploit, exploit
+                        e payload</span></div>
+            </section>
+
+            <!-- ========== SLIDE 10 — S3: DIAGRAMA DO MECANISMO ========== -->
+            <section class="slide">
+                <div class="slide-pad">
+                    <div class="eyebrow reveal">Seção 3 · Análise da vulnerabilidade</div>
+                    <h1 class="s-title reveal">O mecanismo, passo a passo</h1>
+                    <div class="body-area"
+                        style="display:flex;flex-direction:column;align-items:center;justify-content:center;">
+                        <div class="flow reveal">
+                            <div class="flow-box">Cliente SMB envia <span class="mono">nome de usuário malformado</span>
+                            </div>
+                            <div class="flow-arrow"></div>
+                            <div class="flow-box">Samba chama o <span class="mono">username map script</span> com essa
+                                entrada</div>
+                            <div class="flow-arrow"></div>
+                            <div class="flow-box">Metacaracteres de shell são <span class="mono">interpretados</span>
+                            </div>
+                            <div class="flow-arrow"></div>
+                            <div class="flow-box final">Comando executa como <span class="mono">root</span> na vítima
+                            </div>
+                        </div>
+                        <p class="reveal"
+                            style="margin-top:34px;font-size:22px;color:var(--text-dim);text-align:center;max-width:1200px;">
+                            A injeção viaja no campo <span class="mono" style="color:var(--accent)">Account</span> do
+                            pacote <span class="mono">Session Setup AndX Request</span>, e ficará visível na captura de
+                            pacotes.</p>
+                    </div>
+                </div>
+                <div class="foot"><span><span class="dot">●</span> CVE-2007-2447 · Samba</span><span>Mecanismo da
+                        injeção</span></div>
+            </section>
+
+            <!-- ========== SLIDE 11 — S4: TRÍADE CIA ========== -->
+            <section class="slide">
+                <div class="slide-pad">
+                    <div class="eyebrow reveal">Seção 4 · Impacto e análise de protocolo</div>
+                    <h1 class="s-title reveal">Impacto na tríade <span class="em">CIA</span></h1>
+                    <div class="body-area">
+                        <div class="grid-3" style="height:100%;align-content:center;">
+                            <div class="card reveal">
+                                <h3>Confidencialidade</h3>
+                                <p><strong>Afetada diretamente.</strong> O atacante leu o <code>/etc/shadow</code> e
+                                    obteve as senhas de todos os usuários <strong>sem jamais fornecer uma senha
+                                        válida</strong>.</p>
+                            </div>
+                            <div class="card reveal">
+                                <h3>Integridade</h3>
+                                <p>Com acesso root, seria possível <strong>alterar qualquer arquivo</strong>,
+                                    configurações, binários, logs. Tecnicamente possível, não realizado.</p>
+                            </div>
+                            <div class="card reveal">
+                                <h3>Disponibilidade</h3>
+                                <p>Com root, seria possível <strong>parar serviços, corromper dados ou derrubar o
+                                        sistema</strong>. Também não realizado.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="foot"><span><span class="dot">●</span> CVE-2007-2447 · Samba</span><span>Impacto CIA</span>
+                </div>
+            </section>
+
+            <!-- ========== SLIDE 12 — S4: NÃO É SENHA FRACA ========== -->
+            <section class="slide">
+                <div class="slide-pad">
+                    <div class="eyebrow reveal">Seção 4 · Impacto e análise de protocolo</div>
+                    <h1 class="s-title reveal">Por que <span class="em">não</span> é "senha fraca"</h1>
+                    <p class="lead reveal">A falha ocorre <strong>antes</strong> da autenticação. É uma vulnerabilidade
+                        de <strong>injeção de comando</strong> (command injection), tratamento inseguro de entrada.</p>
+                    <div class="body-area">
+                        <ul class="ticks reveal" style="font-size:25px;">
+                            <li>No fluxo SMB, o campo de nome de usuário é processado na <strong>negociação de
+                                    sessão</strong>, antes de qualquer verificação de senha.</li>
+                            <li>A prova está no pacote: o campo <span class="mono"
+                                    style="color:var(--accent)">Account</span> carrega o <strong>comando shell</strong>
+                                em vez de um nome.</li>
+                            <li>Não há troca de senha em momento algum, credenciais são <strong>irrelevantes</strong>
+                                para a exploração.</li>
+                        </ul>
+                    </div>
+                </div>
+                <div class="foot"><span><span class="dot">●</span> CVE-2007-2447 · Samba</span><span>Injeção de comando,
+                        não senha fraca</span></div>
+            </section>
+
+            <!-- ========== SLIDE 13 — S4: HASHES MD5 E JOHN ========== -->
+            <section class="slide">
+                <div class="slide-pad">
+                    <div class="eyebrow reveal">Seção 4 · Impacto e análise de protocolo</div>
+                    <h1 class="s-title reveal">Hashes <span class="em">MD5-crypt</span> e quebra de senha</h1>
+                    <div class="body-area">
+                        <div class="grid-2" style="height:100%;align-content:center;">
+                            <div class="hl reveal">
+                                <span class="tag">O problema</span>
+                                <h3 style="font-size:32px;">Hash antigo e barato</h3>
+                                <p>O Metasploitable2 usa <code>$1$</code> (MD5-crypt), algoritmo
+                                    <strong>computacionalmente barato</strong>. O John the Ripper começa pelo
+                                    <strong>single crack mode</strong>, testa o próprio nome de usuário como senha.
+                                    Contas como <span class="mono">msfadmin:msfadmin</span> caem
+                                    <strong>instantaneamente</strong>.
+                                </p>
+                            </div>
+                            <div class="hl accent reveal">
+                                <span class="tag">O contraste</span>
+                                <h3 style="font-size:32px;">Hashing moderno</h3>
+                                <p>Com <code>$6$</code> (SHA-512) ou <code>$y$</code> (yescrypt), cada tentativa de
+                                    quebra é <strong>ordens de magnitude mais cara</strong>, o que torna o ataque
+                                    inviável na prática.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="foot"><span><span class="dot">●</span> CVE-2007-2447 · Samba</span><span>Hashes e quebra de
+                        senha</span></div>
+            </section>
+
+            <!-- ========== SLIDE 14 — S5: POR QUE A MITIGAÇÃO FUNCIONOU ========== -->
+            <section class="slide">
+                <div class="slide-pad">
+                    <div class="eyebrow reveal">Seção 5 · Defesa em profundidade e conclusão</div>
+                    <h1 class="s-title reveal">Por que a mitigação funcionou</h1>
+                    <p class="lead reveal">A defesa <strong>não bloqueia o pacote</strong>, o campo <span
+                            class="mono">Account</span> ainda carrega a injeção. O que muda é <strong>para onde essa
+                            entrada vai</strong>. É eliminar a causa-raiz, não contornar o sintoma.</p>
+                    <div class="body-area">
+                        <div class="grid-2" style="align-content:center;">
+                            <div class="card reveal">
+                                <span class="ba-label bad">Antes · vulnerável</span>
+                                <h3 style="margin-top:8px;"><span class="mono"
+                                        style="font-size:24px;color:var(--text)">username map script</span></h3>
+                                <p>Invoca um <strong>script externo</strong> passando a entrada do cliente, que chega a
+                                    um <strong>interpretador de comandos</strong>.</p>
+                            </div>
+                            <div class="card reveal" style="border-color:var(--accent);background:var(--panel-2)">
+                                <span class="ba-label good">Depois · corrigido</span>
+                                <h3 style="margin-top:8px;"><span class="mono"
+                                        style="font-size:24px;color:var(--accent)">username map</span> (estático)</h3>
+                                <p style="color:var(--text)">Lê um <strong>arquivo de mapeamento fixo</strong>. A
+                                    entrada do cliente <strong>nunca chega a um shell</strong>. O serviço continua
+                                    ativo.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="foot"><span><span class="dot">●</span> CVE-2007-2447 · Samba</span><span>Mecanismo da
+                        defesa</span></div>
+            </section>
+
+            <!-- ========== SLIDE 15 — S5: DEFESA EM PROFUNDIDADE ========== -->
+            <section class="slide">
+                <div class="slide-pad">
+                    <div class="eyebrow reveal">Seção 5 · Defesa em profundidade e conclusão</div>
+                    <h1 class="s-title reveal">Camadas adicionais de defesa</h1>
+                    <div class="body-area">
+                        <div class="def-grid reveal">
+                            <div class="def">
+                                <div class="di">01</div>
+                                <h4>Senhas fortes</h4>
+                                <p>Senhas longas e aleatórias tornam a quebra inviável, mesmo que um hash vaze.</p>
+                            </div>
+                            <div class="def">
+                                <div class="di">02</div>
+                                <h4>Hashing moderno</h4>
+                                <p>Trocar <code>$1$</code> por <code>$6$</code> ou <code>$y$</code> eleva o custo de
+                                    cada tentativa.</p>
+                            </div>
+                            <div class="def">
+                                <div class="di">03</div>
+                                <h4>Menor privilégio</h4>
+                                <p>Se o <span class="mono">smbd</span> não rodasse como root, o comando não acessaria o
+                                    <code>/etc/shadow</code>.
+                                </p>
+                            </div>
+                            <div class="def">
+                                <div class="di">04</div>
+                                <h4>Restrição de rede</h4>
+                                <p><code>hosts allow</code>/<code>deny</code> e firewall limitam quem acessa as portas
+                                    SMB.</p>
+                            </div>
+                            <div class="def">
+                                <div class="di">05</div>
+                                <h4>Monitoramento / IDS</h4>
+                                <p>Nomes de usuário com metacaracteres em pacotes SMB são assinatura de exploração.</p>
+                            </div>
+                            <div class="def">
+                                <div class="di">06</div>
+                                <h4>Auditoria de config</h4>
+                                <p>Revisar o <code>smb.conf</code> em busca de diretivas perigosas alimentadas pelo
+                                    cliente.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="foot"><span><span class="dot">●</span> CVE-2007-2447 · Samba</span><span>Defesa em
+                        profundidade</span></div>
+            </section>
+
+            <!-- ========== SLIDE 16 — S5: CONCLUSÃO ========== -->
+            <section class="slide">
+                <div class="slide-pad closing">
+                    <div class="eyebrow reveal">Seção 5 · Conclusão</div>
+
+                    <div class="big-quote reveal">Segurança não é sobre <span style="color:var(--text-dim)">desligar
+                            serviços</span>. É sobre <span class="em">entender e remover</span> o que os torna
+                        exploráveis.</div>
+
+                    <!-- Ilustração: o jeito errado (desligar) vs. o jeito certo (corrigir a causa-raiz) -->
+                    <div class="concl-illus reveal">
+                        <!-- ESQUERDA — desligar o serviço (errado): cabo saindo da tomada + proibição -->
+                        <div class="ci-col">
+                            <div class="ci-card bad">
+                                <svg viewBox="0 0 120 120" fill="none" aria-hidden="true">
+                                    <rect x="14" y="42" width="22" height="36" rx="5" stroke="#C9605C"
+                                        stroke-width="6" />
+                                    <line x1="36" y1="52" x2="46" y2="52" stroke="#C9605C" stroke-width="6"
+                                        stroke-linecap="round" />
+                                    <line x1="36" y1="68" x2="46" y2="68" stroke="#C9605C" stroke-width="6"
+                                        stroke-linecap="round" />
+                                    <rect x="56" y="48" width="26" height="24" rx="6" stroke="#C9605C"
+                                        stroke-width="6" />
+                                    <path d="M82 60 C 96 60, 100 78, 96 96" stroke="#C9605C" stroke-width="6"
+                                        stroke-linecap="round" />
+                                    <circle cx="60" cy="60" r="50" stroke="#C9605C" stroke-width="6" opacity="0.85" />
+                                    <line x1="25" y1="25" x2="95" y2="95" stroke="#C9605C" stroke-width="6"
+                                        stroke-linecap="round" opacity="0.85" />
+                                </svg>
+                            </div>
+                        </div>
+
+                        <div class="ci-vs">vs</div>
+
+                        <!-- DIREITA — remover a causa-raiz (certo): servidor com escudo + check verde -->
+                        <div class="ci-col">
+                            <div class="ci-card good">
+                                <svg viewBox="0 0 120 120" fill="none" aria-hidden="true">
+                                    <rect x="22" y="22" width="50" height="74" rx="7" stroke="#74B86B"
+                                        stroke-width="6" />
+                                    <line x1="22" y1="47" x2="72" y2="47" stroke="#74B86B" stroke-width="5" />
+                                    <line x1="22" y1="71" x2="72" y2="71" stroke="#74B86B" stroke-width="5" />
+                                    <circle cx="34" cy="35" r="3.6" fill="#74B86B" />
+                                    <circle cx="34" cy="59" r="3.6" fill="#74B86B" />
+                                    <circle cx="34" cy="83" r="3.6" fill="#74B86B" />
+                                    <path d="M88 52 L106 59 V74 C106 87, 97 95, 88 99 C79 95, 70 87, 70 74 V59 Z"
+                                        fill="#0C0D0E" stroke="#74B86B" stroke-width="6" stroke-linejoin="round" />
+                                    <path d="M80 75 l6 6 l11 -13" stroke="#74B86B" stroke-width="5"
+                                        stroke-linecap="round" stroke-linejoin="round" />
+                                </svg>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="foot"><span><span class="dot">●</span> CVE-2007-2447 · Samba</span><span>Conclusão</span>
+                </div>
+            </section>
+
+        </main>
+    </div>
+
+    <script>
+        /* ===========================================================
+           CONTROLADOR DA APRESENTAÇÃO
+           - escala do palco 16:9
+           - navegação (teclado / clique / roda / toque)
+           - progresso + contador
+           =========================================================== */
+        class SlidePresentation {
+            constructor() {
+                this.slides = Array.from(document.querySelectorAll('.slide'));
+                this.current = 0;
+                this.stage = document.getElementById('deckStage');
+                this.bar = document.getElementById('progressBar');
+                this.cur = document.getElementById('curNum');
+                document.getElementById('totNum').textContent = String(this.slides.length).padStart(2, '0');
+                this.setupScale();
+                this.setupNav();
+                this.show(0);
+            }
+
+            /* escala o palco inteiro mantendo 16:9 (letterbox/pillarbox) */
+            setupScale() {
+                const scale = () => {
+                    const f = Math.min(window.innerWidth / 1920, window.innerHeight / 1080);
+                    const x = (window.innerWidth - 1920 * f) / 2;
+                    const y = (window.innerHeight - 1080 * f) / 2;
+                    this.stage.style.transform = `translate(${x}px, ${y}px) scale(${f})`;
+                };
+                scale();
+                window.addEventListener('resize', scale);
+            }
+
+            setupNav() {
+                document.addEventListener('keydown', (e) => {
+                    if (e.target.getAttribute && e.target.getAttribute('contenteditable')) return;
+                    if (['ArrowRight', 'ArrowDown', ' ', 'PageDown'].includes(e.key)) { e.preventDefault(); this.next(); }
+                    else if (['ArrowLeft', 'ArrowUp', 'PageUp'].includes(e.key)) { e.preventDefault(); this.prev(); }
+                    else if (e.key === 'Home') this.show(0);
+                    else if (e.key === 'End') this.show(this.slides.length - 1);
+                });
+                // clique avança / volta (ignora cliques em edição)
+                document.querySelector('.deck-viewport').addEventListener('click', (e) => {
+                    if (document.body.classList.contains('editing')) return;
+                    if (e.clientX < window.innerWidth * 0.25) this.prev(); else this.next();
+                });
+                // roda do mouse
+                let wheelLock = false;
+                window.addEventListener('wheel', (e) => {
+                    if (wheelLock) return; wheelLock = true; setTimeout(() => wheelLock = false, 600);
+                    if (e.deltaY > 0) this.next(); else this.prev();
+                }, { passive: true });
+                // toque
+                let sx = 0;
+                window.addEventListener('touchstart', (e) => { sx = e.touches[0].clientX; }, { passive: true });
+                window.addEventListener('touchend', (e) => {
+                    const dx = e.changedTouches[0].clientX - sx;
+                    if (Math.abs(dx) > 50) { dx < 0 ? this.next() : this.prev(); }
+                }, { passive: true });
+            }
+
+            next() { this.show(this.current + 1); }
+            prev() { this.show(this.current - 1); }
+
+            show(i) {
+                this.current = Math.max(0, Math.min(i, this.slides.length - 1));
+                this.slides.forEach((s, idx) => {
+                    s.classList.toggle('active', idx === this.current);
+                    s.classList.toggle('visible', idx === this.current);
+                });
+                const pct = (this.current) / (this.slides.length - 1) * 100;
+                this.bar.style.width = pct + '%';
+                this.cur.textContent = String(this.current + 1).padStart(2, '0');
+            }
+        }
+        const deck = new SlidePresentation();
+
+        /* ===========================================================
+           EDIÇÃO INLINE (hover canto superior esquerdo ou tecla E)
+           =========================================================== */
+        class InlineEditor {
+            constructor() {
+                this.isActive = false;
+                this.toggleBtn = document.getElementById('editToggle');
+                this.hint = document.getElementById('editHint');
+                // Não restaura edições antigas automaticamente: o conteúdo do arquivo
+                // sempre prevalece (evita que uma versão salva sobrescreva o layout atual).
+                localStorage.removeItem('cve2447_deck');
+            }
+            toggleEditMode() {
+                this.isActive = !this.isActive;
+                document.body.classList.toggle('editing', this.isActive);
+                this.toggleBtn.classList.toggle('active', this.isActive);
+                this.hint.classList.toggle('show', this.isActive);
+                document.querySelectorAll('.slide-pad *').forEach(el => {
+                    if (el.children.length === 0 && el.textContent.trim()) {
+                        el.setAttribute('contenteditable', this.isActive ? 'true' : 'false');
+                    }
+                });
+                if (!this.isActive) this.save();
+            }
+            save() {
+                const data = {};
+                document.querySelectorAll('.slide').forEach((s, i) => data[i] = s.innerHTML);
+                localStorage.setItem('cve2447_deck', JSON.stringify(data));
+            }
+            load() {
+                const raw = localStorage.getItem('cve2447_deck');
+                if (!raw) return;
+                try {
+                    const data = JSON.parse(raw);
+                    document.querySelectorAll('.slide').forEach((s, i) => { if (data[i]) s.innerHTML = data[i]; });
+                } catch (e) { }
+            }
+        }
+        const editor = new InlineEditor();
+
+        /* gatilhos de edição */
+        document.getElementById('editToggle').addEventListener('click', () => editor.toggleEditMode());
+        const hotzone = document.querySelector('.edit-hotzone');
+        const editToggle = document.getElementById('editToggle');
+        let hideTimeout = null;
+        hotzone.addEventListener('mouseenter', () => { clearTimeout(hideTimeout); editToggle.classList.add('show'); });
+        hotzone.addEventListener('mouseleave', () => { hideTimeout = setTimeout(() => { if (!editor.isActive) editToggle.classList.remove('show'); }, 400); });
+        editToggle.addEventListener('mouseenter', () => clearTimeout(hideTimeout));
+        editToggle.addEventListener('mouseleave', () => { hideTimeout = setTimeout(() => { if (!editor.isActive) editToggle.classList.remove('show'); }, 400); });
+        hotzone.addEventListener('click', () => editor.toggleEditMode());
+        document.addEventListener('keydown', (e) => {
+            if ((e.key === 'e' || e.key === 'E') && !(e.target.getAttribute && e.target.getAttribute('contenteditable') === 'true')) editor.toggleEditMode();
+            if ((e.ctrlKey || e.metaKey) && e.key === 's') { e.preventDefault(); editor.save(); }
+        });
+    </script>
+</body>
+
+</html>
