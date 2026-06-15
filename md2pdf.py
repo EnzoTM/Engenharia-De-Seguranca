@@ -38,10 +38,12 @@ ul {{ margin: 0 0 8pt 0; }}
 li {{ margin: 0 0 3pt 0; text-align: justify; }}
 strong {{ color: {accent}; }}
 hr {{ border: none; border-top: 1px solid #cccccc; margin: 10pt 0; }}
-code {{ font-family: monospace; background: #eef1f6; padding: 1px 3px; }}
+pre {{ margin: 0 0 8pt 0; }}
+pre code {{ background: none; padding: 0; }}
+code {{ font-family: monospace; }}
 table {{ border-collapse: collapse; margin: 0 0 8pt 0; }}
 th, td {{ border: 1px solid #999999; padding: 3pt 6pt; text-align: left; }}
-th {{ background: #eef1f6; }}
+th {{ font-weight: bold; }}
 """
 
 
