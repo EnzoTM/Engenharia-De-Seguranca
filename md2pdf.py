@@ -38,8 +38,7 @@ ul {{ margin: 0 0 8pt 0; }}
 li {{ margin: 0 0 3pt 0; text-align: justify; }}
 strong {{ color: {accent}; }}
 hr {{ border: none; border-top: 1px solid #cccccc; margin: 10pt 0; }}
-pre {{ margin: 0 0 8pt 0; }}
-pre code {{ background: none; padding: 0; }}
+pre {{ border-left: 3pt solid #c4ccd6; padding: 0 0 0 9pt; margin: 0 0 8pt 0; }}
 code {{ font-family: monospace; }}
 table {{ border-collapse: collapse; margin: 0 0 8pt 0; }}
 th, td {{ border: 1px solid #999999; padding: 3pt 6pt; text-align: left; }}
