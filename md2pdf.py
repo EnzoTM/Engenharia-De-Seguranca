@@ -37,6 +37,7 @@ p  {{ margin: 0 0 7pt 0; text-align: justify; }}
 ul {{ margin: 0 0 8pt 0; }}
 li {{ margin: 0 0 3pt 0; text-align: justify; }}
 strong {{ color: {accent}; }}
+a {{ color: #1a56db; font-weight: bold; }}
 hr {{ border: none; border-top: 1px solid #cccccc; margin: 10pt 0; }}
 pre {{ border-left: 3pt solid #c4ccd6; padding: 0 0 0 9pt; margin: 0 0 8pt 0; }}
 code {{ font-family: monospace; }}
