@@ -38,6 +38,7 @@ ul {{ margin: 0 0 8pt 0; }}
 li {{ margin: 0 0 3pt 0; text-align: justify; }}
 strong {{ color: {accent}; }}
 a {{ color: #1a56db; font-weight: bold; }}
+img {{ max-width: 100%; }}
 hr {{ border: none; border-top: 1px solid #cccccc; margin: 10pt 0; }}
 pre {{ border-left: 3pt solid #c4ccd6; padding: 0 0 0 9pt; margin: 0 0 8pt 0; }}
 code {{ font-family: monospace; }}
@@ -65,7 +66,10 @@ def md_to_pdf(src, out, paper="a4", margin=50, font="sans-serif",
         page_rect.width - margin, page_rect.height - margin,
     )
 
-    story = fitz.Story(html=html_body, user_css=css)
+    # Archive aponta para a pasta do .md, para que imagens com caminho
+    # relativo (ex.: images/wireshark.png) sejam resolvidas e renderizadas.
+    base_dir = os.path.dirname(os.path.abspath(src)) or "."
+    story = fitz.Story(html=html_body, user_css=css, archive=fitz.Archive(base_dir))
     writer = fitz.DocumentWriter(out)
 
     pages = 0
